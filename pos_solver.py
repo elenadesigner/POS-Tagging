@@ -41,7 +41,6 @@ class Solver:
         sentence_count = 0
 
         for word_list, pos_list in data:
-            counter = collections.Counter(pos_list)
             first_state_flag = 1
             for pos , word in zip(pos_list, word_list):
                 if first_state_flag == 1:
@@ -61,15 +60,15 @@ class Solver:
                         pos_transition_counts[previous_pos] = {}
                         pos_transition_counts[previous_pos][pos] = 1
                 previous_pos = pos
-            if pos in emission_counts:
-                if word in emission_counts[pos]:
-                    emission_counts[pos][word] += 1
+                if pos in emission_counts:
+                    if word in emission_counts[pos]:
+                        emission_counts[pos][word] += 1
+                    else:
+                        emission_counts[pos][word] = 1
                 else:
+                    emission_counts[pos] = {}
                     emission_counts[pos][word] = 1
-            else:
-                emission_counts[pos] = {}
-                emission_counts[pos][word] = 1
-
+            counter = collections.Counter(pos_list)
             for pos, count in counter.items():
                 word_count += count
                 if pos in prior_counts:
