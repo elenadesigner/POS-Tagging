@@ -41,9 +41,9 @@ class Solver:
         sentence_count = 0
 
         for word_list, pos_list in data:
-            counter = collections.Counter(pos_list)
             first_state_flag = 1
             for pos , word in zip(pos_list, word_list):
+                # Calculate initial state counts
                 if first_state_flag == 1:
                     sentence_count += 1
                     if pos in pos_init_counts:
@@ -52,6 +52,7 @@ class Solver:
                         pos_init_counts[pos] = 1
                     first_state_flag = 0
                 else:
+                # Calculate state transition counts
                     if previous_pos in pos_transition_counts:
                         if pos in pos_transition_counts[previous_pos]:
                             pos_transition_counts[previous_pos][pos] += 1
@@ -60,22 +61,22 @@ class Solver:
                     else:
                         pos_transition_counts[previous_pos] = {}
                         pos_transition_counts[previous_pos][pos] = 1
-                previous_pos = pos
-            if pos in emission_counts:
-                if word in emission_counts[pos]:
-                    emission_counts[pos][word] += 1
+                # Calculate emission counts
+                if pos in emission_counts:
+                    if word in emission_counts[pos]:
+                        emission_counts[pos][word] += 1
+                    else:
+                        emission_counts[pos][word] = 1
                 else:
+                    emission_counts[pos] = {}
                     emission_counts[pos][word] = 1
-            else:
-                emission_counts[pos] = {}
-                emission_counts[pos][word] = 1
-
-            for pos, count in counter.items():
-                word_count += count
+                # Calculate prior counts
+                word_count += 1
                 if pos in prior_counts:
-                    prior_counts[pos] += count
+                    prior_counts[pos] += 1
                 else:
-                    prior_counts[pos] = count
+                    prior_counts[pos] = 1
+                previous_pos = pos
 
         for pos, count in prior_counts.items():
             self.prior[pos] = (1.0 * count) / word_count
@@ -94,15 +95,6 @@ class Solver:
             self.emission_probabilities[pos] = {}
             for word, count in word_dict.items():
                 self.emission_probabilities[pos][word] = (1.0 * count) / current_count
-
-        pprint.pprint(self.prior)
-        pprint.pprint("================")
-        pprint.pprint(self.pos_init_probabilities)
-        pprint.pprint("================")
-        pprint.pprint(self.pos_transition_probabilities)
-        pprint.pprint("================")
-        pprint.pprint(self.emission_probabilities)
-        pprint.pprint("================")
 
     # Functions for each algorithm.
     #
