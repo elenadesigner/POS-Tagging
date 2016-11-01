@@ -14,7 +14,7 @@ import random
 import math
 import collections
 import pprint
-
+import operator
 
 # We've set up a suggested code structure, but feel free to change it. Just
 # make sure your code still works with the label.py and pos_scorer.py code
@@ -29,7 +29,7 @@ class Solver:
     #  with a given part-of-speech labeling
     def posterior(self, sentence, label):
         return 0
-
+    
     # Do the training!
     #
     def train(self, data):
@@ -107,10 +107,53 @@ class Solver:
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
-        return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
+        pos_sent = []
+        pro_sent = []
+        for word in sentence:
+            max_pro = 0;
+            max_pos = 0;
+            for idx,pos_type in enumerate(self.prior.keys()):
+                if word in self.emission_probabilities[pos_type]:
+                    pr = self.emission_probabilities[pos_type][word]*self.prior[pos_type]
+                else:
+                    pr = 0.00001
+                if(pr>max_pro):
+                    max_pos = idx
+                    max_pro = pr
+            pos_sent.append(self.prior.keys()[max_pos])
+            pro_sent.append(max_pro)
+        return [[pos_sent],[pro_sent]]
+        #return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
+
 
     def hmm(self, sentence):
-        return [[["noun"] * len(sentence)], []]
+        veterbi = {}
+        veterbi[0] = {}
+        for idx,pos_type in enumerate(self.prior.keys()):
+            word = sentence[0]
+            if sentence[0] in self.emission_probabilities[pos_type]:
+                veterbi[0][pos_type] = self.pos_init_probabilities[pos_type] * self.emission_probabilities[pos_type][word]
+            else:
+                veterbi[0][pos_type] = self.pos_init_probabilities[pos_type] * 0.00001
+        for index in range(1,len(sentence)):
+            word = sentence[index]
+            veterbi[index] = {}
+            prob_values = []
+            for idx,pos_type in enumerate(self.prior.keys()):
+                for idx1,pos_type1 in enumerate(self.prior.keys()):
+                    if pos_type not in self.pos_transition_probabilities[pos_type1]:
+                        self.pos_transition_probabilities[pos_type1][pos_type] = 0.00001
+                    prob_values.append(veterbi[index-1][pos_type1] * self.pos_transition_probabilities[pos_type1][pos_type])
+                if word in self.emission_probabilities[pos_type]:
+                    veterbi[index][pos_type] = max(prob_values) * self.emission_probabilities[pos_type][word]
+                else:
+                    veterbi[index][pos_type] = max(prob_values) * 0.00001
+        pos_sent = []
+        pro_sent = []
+        for index in range(0,len(sentence)):
+            max_val = max(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
+            pos_sent.append(max_val)
+        return [[pos_sent], []]
 
     def complex(self, sentence):
         return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
