@@ -12,12 +12,18 @@
 
 import random
 import math
+import collections
+import pprint
+
 
 # We've set up a suggested code structure, but feel free to change it. Just
 # make sure your code still works with the label.py and pos_scorer.py code
 # that we've supplied.
 #
 class Solver:
+    prior = {}
+    pos_init_probabilities = {}
+    pos_transition_probabilities = {}
 
     # Calculate the log of the posterior probability of a given sentence
     #  with a given part-of-speech labeling
@@ -27,19 +33,65 @@ class Solver:
     # Do the training!
     #
     def train(self, data):
-        pass
+        prior_counts = {}
+        pos_init_counts = {}
+        pos_transition_counts = {}
+        word_count = 0
+        sentence_count = 0
+        for word_list, pos_list in data:
+            counter = collections.Counter(pos_list)
+            first_state_flag = 1
+            for pos, count in counter.items():
+                if first_state_flag == 1:
+                    sentence_count += 1
+                    if pos in pos_init_counts:
+                        pos_init_counts[pos] += 1
+                    else:
+                        pos_init_counts[pos] = 1
+
+                    first_state_flag = 0
+                else:
+                    if previous_pos in pos_transition_counts:
+                        if pos in pos_transition_counts[previous_pos]:
+                            pos_transition_counts[previous_pos][pos] += 1
+                        else:
+                            pos_transition_counts[previous_pos][pos] = 1
+                    else:
+                        pos_transition_counts[previous_pos] = {}
+                        pos_transition_counts[previous_pos][pos] = 1
+
+                word_count += count
+                if pos in prior_counts:
+                    prior_counts[pos] += count
+                else:
+                    prior_counts[pos] = count
+                previous_pos = pos
+        for pos, count in prior_counts.items():
+            self.prior[pos] = (1.0 * count) / word_count
+        for pos, count in pos_init_counts.items():
+            self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
+        for previous_pos, pos_dict in pos_transition_counts.items():
+            current_count = sum(pos_dict.values())
+            self.pos_transition_probabilities[previous_pos] = {}
+            for pos, count in pos_dict.items():
+                self.pos_transition_probabilities[previous_pos][pos] = (1.0 * count) / current_count
+        pprint.pprint(self.prior)
+        pprint.pprint("================")
+        pprint.pprint(self.pos_init_probabilities)
+        pprint.pprint("================")
+        pprint.pprint(self.pos_transition_probabilities)
+        pprint.pprint("================")
 
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
-        return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
+        return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
 
     def hmm(self, sentence):
-        return [ [ [ "noun" ] * len(sentence)], [] ]
+        return [[["noun"] * len(sentence)], []]
 
     def complex(self, sentence):
-        return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
-
+        return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
 
     # This solve() method is called by label.py, so you should keep the interface the
     #  same, but you can change the code itself. 
@@ -60,4 +112,3 @@ class Solver:
             return self.complex(sentence)
         else:
             print "Unknown algo!"
-
