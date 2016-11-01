@@ -25,6 +25,8 @@ class Solver:
     pos_init_probabilities = {}
     pos_transition_probabilities = {}
     emission_probabilities={}
+    emission_cost = {}
+    pos_transition_cost = {}
     # Calculate the log of the posterior probability of a given sentence
     #  with a given part-of-speech labeling
     def posterior(self, sentence, label):
@@ -102,18 +104,23 @@ class Solver:
 
         for item in prior_pos:
             self.pos_transition_probabilities[item]={}
+            self.pos_transition_cost[item] = {}
             for inner_item in prior_pos_copy:
                 self.pos_transition_probabilities[item][inner_item] = 0.00001
+                self.pos_transition_cost[item][inner_item] = math.log(1.0/self.pos_transition_probabilities[item][inner_item])
 
         for pos, word_dict in emission_counts.items():
             current_count = sum(word_dict.values())
             self.emission_probabilities[pos] = {}
+            self.emission_cost[pos] = {}
             for word, count in word_dict.items():
                 self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.00001
+                self.emission_cost[pos][word] = math.log(1.0/self.emission_probabilities[pos][word])
 
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
+        print self.emission_cost['noun']['poet']
         pos_sent = []
         pro_sent = []
         for word in sentence:
