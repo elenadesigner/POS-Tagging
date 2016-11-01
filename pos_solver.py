@@ -80,10 +80,11 @@ class Solver:
 
         for pos, count in prior_counts.items():
             self.prior[pos] = (1.0 * count) / word_count
+
         prior_pos=set(self.prior.keys())
         to_add=prior_pos.difference(self.pos_init_probabilities.keys())
         for item in to_add:
-            self.pos_init_probabilities[item]=0.0001
+            self.pos_init_probabilities[item]=0.00001
 
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
@@ -95,19 +96,20 @@ class Solver:
             strike_off=prior_pos_copy.copy()
             for current_pos, count in pos_dict.items():
                 strike_off.remove(current_pos)
-                self.pos_transition_probabilities[previous_pos][current_pos] = ((1.0 * count) / current_count) + 0.0001
+                self.pos_transition_probabilities[previous_pos][current_pos] = ((1.0 * count) / current_count) + 0.00001
             for inner_item in strike_off:
-                self.pos_transition_probabilities[previous_pos][inner_item] = 0.0001
+                self.pos_transition_probabilities[previous_pos][inner_item] = 0.00001
 
         for item in prior_pos:
             self.pos_transition_probabilities[item]={}
             for inner_item in prior_pos_copy:
-                self.pos_transition_probabilities[item][inner_item] = 0.0001
+                self.pos_transition_probabilities[item][inner_item] = 0.00001
+
         for pos, word_dict in emission_counts.items():
             current_count = sum(word_dict.values())
             self.emission_probabilities[pos] = {}
             for word, count in word_dict.items():
-                self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.001
+                self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.00001
 
     # Functions for each algorithm.
     #
