@@ -148,8 +148,6 @@ class Solver:
             prob_values = []
             for idx,pos_type in enumerate(self.prior.keys()):
                 for idx1,pos_type1 in enumerate(self.prior.keys()):
-                    if pos_type not in self.pos_transition_probabilities[pos_type1]:
-                        self.pos_transition_probabilities[pos_type1][pos_type] = 0.00001
                     prob_values.append(veterbi[index-1][pos_type1] * self.pos_transition_probabilities[pos_type1][pos_type])
                 if word in self.emission_probabilities[pos_type]:
                     veterbi[index][pos_type] = max(prob_values) * self.emission_probabilities[pos_type][word]
