@@ -95,12 +95,15 @@ class Solver:
             prior_pos.remove(previous_pos)
             current_count = sum(pos_dict.values())
             self.pos_transition_probabilities[previous_pos] = {}
+            self.pos_transition_cost[previous_pos] = {}
             strike_off=prior_pos_copy.copy()
             for current_pos, count in pos_dict.items():
                 strike_off.remove(current_pos)
                 self.pos_transition_probabilities[previous_pos][current_pos] = ((1.0 * count) / current_count) + 0.00001
+                self.pos_transition_cost[previous_pos][current_pos] = math.log(1.0/self.pos_transition_probabilities[previous_pos][current_pos])
             for inner_item in strike_off:
                 self.pos_transition_probabilities[previous_pos][inner_item] = 0.00001
+                self.pos_transition_cost[previous_pos][inner_item] = math.log(1.0/self.pos_transition_probabilities[previous_pos][inner_item])
 
         for item in prior_pos:
             self.pos_transition_probabilities[item]={}
@@ -145,25 +148,25 @@ class Solver:
         veterbi[0] = {}
         for idx,pos_type in enumerate(self.prior.keys()):
             word = sentence[0]
-            if sentence[0] in self.emission_probabilities[pos_type]:
-                veterbi[0][pos_type] = self.pos_init_probabilities[pos_type] * self.emission_probabilities[pos_type][word]
+            if sentence[0] in self.emission_cost[pos_type]:
+                veterbi[0][pos_type] = math.log(1/self.pos_init_probabilities[pos_type]) + self.emission_cost[pos_type][word]
             else:
-                veterbi[0][pos_type] = self.pos_init_probabilities[pos_type] * 0.00001
+                veterbi[0][pos_type] = math.log(1/self.pos_init_probabilities[pos_type]) + math.log(1/0.00001)
         for index in range(1,len(sentence)):
             word = sentence[index]
             veterbi[index] = {}
             prob_values = []
             for idx,pos_type in enumerate(self.prior.keys()):
                 for idx1,pos_type1 in enumerate(self.prior.keys()):
-                    prob_values.append(veterbi[index-1][pos_type1] * self.pos_transition_probabilities[pos_type1][pos_type])
-                if word in self.emission_probabilities[pos_type]:
-                    veterbi[index][pos_type] = max(prob_values) * self.emission_probabilities[pos_type][word]
+                    prob_values.append(veterbi[index-1][pos_type1] + self.pos_transition_cost[pos_type1][pos_type])
+                if word in self.emission_cost[pos_type]:
+                    veterbi[index][pos_type] = min(prob_values) + self.emission_cost[pos_type][word]
                 else:
-                    veterbi[index][pos_type] = max(prob_values) * 0.00001
+                    veterbi[index][pos_type] = min(prob_values) + math.log(1/0.00001)
         pos_sent = []
         pro_sent = []
         for index in range(0,len(sentence)):
-            max_val = max(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
+            max_val = min(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
             pos_sent.append(max_val)
         return [[pos_sent], []]
 
