@@ -16,6 +16,7 @@ import collections
 import pprint
 import operator
 
+
 # We've set up a suggested code structure, but feel free to change it. Just
 # make sure your code still works with the label.py and pos_scorer.py code
 # that we've supplied.
@@ -24,27 +25,28 @@ class Solver:
     prior = {}
     pos_init_probabilities = {}
     pos_transition_probabilities = {}
-    emission_probabilities={}
+    emission_probabilities = {}
     emission_cost = {}
     pos_transition_cost = {}
+
     # Calculate the log of the posterior probability of a given sentence
     #  with a given part-of-speech labeling
     def posterior(self, sentence, label):
         return 0
-    
+
     # Do the training!
     #
     def train(self, data):
         prior_counts = {}
         pos_init_counts = {}
         pos_transition_counts = {}
-        emission_counts={}
+        emission_counts = {}
         word_count = 0
         sentence_count = 0
 
         for word_list, pos_list in data:
             first_state_flag = 1
-            for pos , word in zip(pos_list, word_list):
+            for pos, word in zip(pos_list, word_list):
                 # Calculate initial state counts
                 if first_state_flag == 1:
                     sentence_count += 1
@@ -54,7 +56,7 @@ class Solver:
                         pos_init_counts[pos] = 1
                     first_state_flag = 0
                 else:
-                # Calculate state transition counts
+                    # Calculate state transition counts
                     if previous_pos in pos_transition_counts:
                         if pos in pos_transition_counts[previous_pos]:
                             pos_transition_counts[previous_pos][pos] += 1
@@ -83,10 +85,10 @@ class Solver:
         for pos, count in prior_counts.items():
             self.prior[pos] = (1.0 * count) / word_count
 
-        prior_pos=set(self.prior.keys())
-        to_add=prior_pos.difference(self.pos_init_probabilities.keys())
+        prior_pos = set(self.prior.keys())
+        to_add = prior_pos.difference(self.pos_init_probabilities.keys())
         for item in to_add:
-            self.pos_init_probabilities[item]=0.00001
+            self.pos_init_probabilities[item] = 0.00001
 
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
@@ -104,13 +106,13 @@ class Solver:
             for inner_item in strike_off:
                 self.pos_transition_probabilities[previous_pos][inner_item] = 0.00001
                 self.pos_transition_cost[previous_pos][inner_item] = math.log(1.0/self.pos_transition_probabilities[previous_pos][inner_item])
-
         for item in prior_pos:
-            self.pos_transition_probabilities[item]={}
+            self.pos_transition_probabilities[item] = {}
             self.pos_transition_cost[item] = {}
             for inner_item in prior_pos_copy:
                 self.pos_transition_probabilities[item][inner_item] = 0.00001
-                self.pos_transition_cost[item][inner_item] = math.log(1.0/self.pos_transition_probabilities[item][inner_item])
+                self.pos_transition_cost[item][inner_item] = math.log(
+                    1.0 / self.pos_transition_probabilities[item][inner_item])
 
         for pos, word_dict in emission_counts.items():
             current_count = sum(word_dict.values())
@@ -118,7 +120,7 @@ class Solver:
             self.emission_cost[pos] = {}
             for word, count in word_dict.items():
                 self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.00001
-                self.emission_cost[pos][word] = math.log(1.0/self.emission_probabilities[pos][word])
+                self.emission_cost[pos][word] = math.log(1.0 / self.emission_probabilities[pos][word])
 
     # Functions for each algorithm.
     #
@@ -129,24 +131,23 @@ class Solver:
         for word in sentence:
             max_pro = 0;
             max_pos = 0;
-            for idx,pos_type in enumerate(self.prior.keys()):
+            for idx, pos_type in enumerate(self.prior.keys()):
                 if word in self.emission_probabilities[pos_type]:
-                    pr = self.emission_probabilities[pos_type][word]*self.prior[pos_type]
+                    pr = self.emission_probabilities[pos_type][word] * self.prior[pos_type]
                 else:
                     pr = 0.00001
-                if(pr>max_pro):
+                if (pr > max_pro):
                     max_pos = idx
                     max_pro = pr
             pos_sent.append(self.prior.keys()[max_pos])
             pro_sent.append(max_pro)
-        return [[pos_sent],[pro_sent]]
-        #return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
-
+        return [[pos_sent], [pro_sent]]
+        # return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
 
     def hmm(self, sentence):
         veterbi = {}
         veterbi[0] = {}
-        for idx,pos_type in enumerate(self.prior.keys()):
+        for idx, pos_type in enumerate(self.prior.keys()):
             word = sentence[0]
             if sentence[0] in self.emission_cost[pos_type]:
                 veterbi[0][pos_type] = math.log(1/self.pos_init_probabilities[pos_type]) + self.emission_cost[pos_type][word]
@@ -169,6 +170,14 @@ class Solver:
             max_val = min(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
             pos_sent.append(max_val)
         return [[pos_sent], []]
+
+
+    # This will be used for the variable elimination part and will be called in complex()
+    def trans_prob(self, state, ind):
+        if ind - 1 > 0:
+            tau = trans_prob(self, state, ind - 1)
+        tau1 = tau*self.pos_transition_probabilities
+        return tau
 
     def complex(self, sentence):
         return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
