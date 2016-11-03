@@ -125,7 +125,6 @@ class Solver:
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
-        print self.emission_cost['noun']['poet']
         pos_sent = []
         pro_sent = []
         for word in sentence:
@@ -150,26 +149,36 @@ class Solver:
         for idx, pos_type in enumerate(self.prior.keys()):
             word = sentence[0]
             if sentence[0] in self.emission_cost[pos_type]:
-                veterbi[0][pos_type] = math.log(1/self.pos_init_probabilities[pos_type]) + self.emission_cost[pos_type][word]
+                veterbi[0][pos_type] = ([],math.log(1/self.pos_init_probabilities[pos_type]) + self.emission_cost[pos_type][word])
             else:
-                veterbi[0][pos_type] = math.log(1/self.pos_init_probabilities[pos_type]) + math.log(1/0.00001)
+                veterbi[0][pos_type] = ([],math.log(1/self.pos_init_probabilities[pos_type]) + math.log(1/0.00001))
         for index in range(1,len(sentence)):
             word = sentence[index]
             veterbi[index] = {}
-            prob_values = []
             for idx,pos_type in enumerate(self.prior.keys()):
+                prob_values = []
                 for idx1,pos_type1 in enumerate(self.prior.keys()):
-                    prob_values.append(veterbi[index-1][pos_type1] + self.pos_transition_cost[pos_type1][pos_type])
+                    prob_values.append(veterbi[index-1][pos_type1][1] + self.pos_transition_cost[pos_type1][pos_type])
+                min_value = min(prob_values)
+                min_pos = self.prior.keys()[prob_values.index(min_value)]
+                path = veterbi[index-1][min_pos][0][:]
+                path.append(min_pos)
                 if word in self.emission_cost[pos_type]:
-                    veterbi[index][pos_type] = min(prob_values) + self.emission_cost[pos_type][word]
+                    veterbi[index][pos_type] = (path,min(prob_values) + self.emission_cost[pos_type][word])
                 else:
-                    veterbi[index][pos_type] = min(prob_values) + math.log(1/0.00001)
+                    veterbi[index][pos_type] = (path,min(prob_values) + math.log(1/0.00001))
+            #print veterbi[index]
         pos_sent = []
         pro_sent = []
+        
         for index in range(0,len(sentence)):
-            max_val = min(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
-            pos_sent.append(max_val)
-        return [[pos_sent], []]
+           max_val = min(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
+           pos_sent.append(max_val)
+        min_index =  min(veterbi[len(sentence)-1])
+        final_pos =  veterbi[len(sentence)-1][min_index][0]
+        final_pos.append(min_index)
+        #print final_pos
+        return [[final_pos], []]
 
 
     # This will be used for the variable elimination part and will be called in complex()
