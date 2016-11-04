@@ -27,7 +27,7 @@ class Solver:
     pos_transition_probabilities = {}
     pos_complex_transition_probabilities = {}
     emission_probabilities = {}
-
+    taus = {}
     emission_cost = {}
     pos_transition_cost = {}
 
@@ -111,7 +111,7 @@ class Solver:
         # Set missing pos to very small value (Laplace smoothing)
         for item in to_add:
             self.pos_init_probabilities[item] = 0.00001
-
+        self.taus["s1"] = self.pos_init_probabilities
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
@@ -161,7 +161,7 @@ class Solver:
             self.pos_complex_transition_probabilities[pos_combination] = {}
             for current_pos, count in pos_dict.items():
                 self.pos_complex_transition_probabilities[pos_combination][current_pos] = ((
-                                                                                           1.0 * count) / current_count) + 0.00001
+                                                                                               1.0 * count) / current_count) + 0.00001
 
     # Functions for each algorithm.
     #
@@ -223,14 +223,93 @@ class Solver:
         return [[final_pos], []]
 
     # This will be used for the variable elimination part and will be called in complex()
-    def trans_prob(self, state, ind):
-        if ind - 1 > 0:
-            tau = trans_prob(self, state, ind - 1)
-        tau1 = tau * self.pos_transition_probabilities
-        return tau
+    # def trans_prob(self, state, ind):
+    #     if ind - 1 > 0:
+    #         tau = trans_prob(self, state, ind - 1)
+    #     tau1 = tau * self.pos_transition_probabilities
+    #     return tau
 
     def complex(self, sentence):
-        return [[["noun"] * len(sentence)], [[0] * len(sentence), ]]
+        pos = self.prior.keys()
+        pos_list = []
+        conf_list = []
+        for i, v in enumerate(sentence):
+            prob_max = 0
+            final_pos = pos[0]
+            tau_value = "s" + str(i + 1)
+            tau_lookup_value = "s" + str(i)
+            if i == 0:
+                for current_pos in self.taus[tau_value]:
+                    emission_prob = 0.00001
+                    if v in self.emission_probabilities[current_pos]:
+                        emission_prob = self.emission_probabilities[current_pos][v]
+                    calculated_tau_value=self.taus[tau_value][current_pos] * emission_prob
+                    self.taus[tau_value][current_pos]=calculated_tau_value
+                    if calculated_tau_value > prob_max:
+                        prob_max = calculated_tau_value
+                        final_pos = current_pos
+            elif i == 1:
+                for s_2 in pos:
+                    sum = 0
+                    for s_1 in pos:
+                        current_tau_value = self.taus[tau_lookup_value][s_1]
+                        emission_prob = 0.00001
+                        if v in self.emission_probabilities[s_2]:
+                            emission_prob = self.emission_probabilities[s_2][v]
+
+                        transition_prob = 0.00001
+                        if s_2 in self.pos_transition_probabilities[s_1]:
+                            transition_prob = self.pos_transition_probabilities[s_1][s_2]
+
+                        calculated_tau_value = current_tau_value * transition_prob * emission_prob
+                        sum += calculated_tau_value
+                        if tau_value in self.taus:
+                            if s_1 in self.taus[tau_value]:
+                                self.taus[tau_value][s_1][s_2] = calculated_tau_value
+                            else:
+                                self.taus[tau_value][s_1] = {}
+                                self.taus[tau_value][s_1][s_2] = calculated_tau_value
+                        else:
+                            self.taus[tau_value] = {}
+                            self.taus[tau_value][s_1] = {}
+                            self.taus[tau_value][s_1][s_2] = calculated_tau_value
+                    if sum > prob_max:
+                        prob_max = sum
+                        final_pos = s_2
+            else:
+                for s_3 in pos:
+                    sum = 0
+                    for s_1 in pos:
+                        for s_2 in pos:
+                            current_tau_value = self.taus[tau_lookup_value][s_1][s_2]
+
+                            transition_prob = 0.00001
+                            if (s_1, s_2) in self.pos_complex_transition_probabilities and s_3 in \
+                                    self.pos_complex_transition_probabilities[(s_1, s_2)]:
+                                transition_prob = self.pos_complex_transition_probabilities[(s_1, s_2)][s_3]
+
+                            emission_prob = 0.00001
+                            if v in self.emission_probabilities[s_3]:
+                                emission_prob = self.emission_probabilities[s_3][v]
+
+                            calculated_tau_value = current_tau_value * transition_prob * emission_prob
+                            sum += calculated_tau_value
+                            if tau_value in self.taus:
+                                if s_2 in self.taus[tau_value]:
+                                    self.taus[tau_value][s_2][s_3] = calculated_tau_value
+                                else:
+                                    self.taus[tau_value][s_2] = {}
+                                    self.taus[tau_value][s_2][s_3] = calculated_tau_value
+                            else:
+                                self.taus[tau_value] = {}
+                                self.taus[tau_value][s_2] = {}
+                                self.taus[tau_value][s_2][s_3] = calculated_tau_value
+                    if sum > prob_max:
+                        prob_max = sum
+                        final_pos = s_3
+            pos_list.append(final_pos)
+            conf_list.append(prob_max)
+        return [[pos_list], [conf_list]]
 
     # This solve() method is called by label.py, so you should keep the interface the
     #  same, but you can change the code itself. 
