@@ -111,7 +111,7 @@ class Solver:
         # Set missing pos to very small value (Laplace smoothing)
         for item in to_add:
             self.pos_init_probabilities[item] = 0.00001
-        self.taus["s1"] = self.pos_init_probabilities
+
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
@@ -222,13 +222,6 @@ class Solver:
         # print final_pos
         return [[final_pos], []]
 
-    # This will be used for the variable elimination part and will be called in complex()
-    # def trans_prob(self, state, ind):
-    #     if ind - 1 > 0:
-    #         tau = trans_prob(self, state, ind - 1)
-    #     tau1 = tau * self.pos_transition_probabilities
-    #     return tau
-
     def complex(self, sentence):
         pos = self.prior.keys()
         pos_list = []
@@ -239,12 +232,16 @@ class Solver:
             tau_value = "s" + str(i + 1)
             tau_lookup_value = "s" + str(i)
             if i == 0:
-                for current_pos in self.taus[tau_value]:
+                for current_pos in self.pos_init_probabilities:
                     emission_prob = 0.00001
                     if v in self.emission_probabilities[current_pos]:
                         emission_prob = self.emission_probabilities[current_pos][v]
-                    calculated_tau_value=self.taus[tau_value][current_pos] * emission_prob
-                    self.taus[tau_value][current_pos]=calculated_tau_value
+                    calculated_tau_value=self.pos_init_probabilities[current_pos] * emission_prob
+                    if tau_value in self.taus:
+                        self.taus[tau_value][current_pos]=calculated_tau_value
+                    else:
+                        self.taus[tau_value]={}
+                        self.taus[tau_value][current_pos] = calculated_tau_value
                     if calculated_tau_value > prob_max:
                         prob_max = calculated_tau_value
                         final_pos = current_pos
