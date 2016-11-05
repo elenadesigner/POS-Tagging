@@ -53,9 +53,9 @@ class Solver:
         for word_list, pos_list in data:
             trigram_pos = None
             previous_pos = None
-            word_count += 1
             first_state_flag = 1
             for pos, word in zip(pos_list, word_list):
+                word_count += 1
                 # Calculate initial state counts
                 if first_state_flag == 1:
                     sentence_count += 1
@@ -89,13 +89,13 @@ class Solver:
 
                 # Calculate emission counts
                 if pos in emission_counts:
-                    if word.lower() in emission_counts[pos]:
-                        emission_counts[pos][word.lower()] += 1
+                    if word in emission_counts[pos]:
+                        emission_counts[pos][word] += 1
                     else:
-                        emission_counts[pos][word.lower()] = 1
+                        emission_counts[pos][word] = 1
                 else:
                     emission_counts[pos] = {}
-                    emission_counts[pos][word.lower()] = 1
+                    emission_counts[pos][word] = 1
                 # Calculate prior counts
                 if pos in prior_counts:
                     prior_counts[pos] += 1
@@ -109,7 +109,7 @@ class Solver:
 
         # List of prior value
         prior_pos = set(self.prior.keys())
-        to_add = prior_pos.difference(self.pos_init_probabilities.keys())
+        to_add = prior_pos.difference(set(pos_init_counts.keys()))
 
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
@@ -119,10 +119,13 @@ class Solver:
         for item in to_add:
             self.pos_init_probabilities[item] = 0.0000001
         prior_pos_copy = prior_pos.copy()
+
         # Convert state transitions counts to probabilities
+        transitions_sanity_count = 0
         for previous_pos, pos_dict in pos_transition_counts.items():
             prior_pos.remove(previous_pos)
             current_count = sum(pos_dict.values())
+            transitions_sanity_count += current_count
             self.pos_transition_probabilities[previous_pos] = {}
             self.pos_transition_cost[previous_pos] = {}
             strike_off = prior_pos_copy.copy()
@@ -151,8 +154,10 @@ class Solver:
                     1.0 / self.pos_transition_probabilities[item][inner_item])
 
         # Convert emission counts to probabilities
+        emission_sanity_count = 0
         for pos, word_dict in emission_counts.items():
             current_count = sum(word_dict.values())
+            emission_sanity_count += current_count
             self.emission_probabilities[pos] = {}
             self.emission_cost[pos] = {}
             for word, count in word_dict.items():
@@ -160,31 +165,40 @@ class Solver:
                 self.emission_cost[pos][word] = math.log(1.0 / self.emission_probabilities[pos][word])
 
         # Convert state transitions counts to probabilities
+        complex_transitions_sanity_count = 0
         for pos_combination, pos_dict in pos_complex_transition_counts.items():
             current_count = sum(pos_dict.values())
+            complex_transitions_sanity_count += current_count
             self.pos_complex_transition_probabilities[pos_combination] = {}
             for current_pos, count in pos_dict.items():
                 self.pos_complex_transition_probabilities[pos_combination][current_pos] = ((
                                                                                                1.0 * count) / current_count) + 0.0000001
-
+        pprint.pprint(self.prior)
+        #pprint.pprint(self.pos_complex_transition_probabilities)
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
         pos_sent = []
         pro_sent = []
+        first=1
         for word in sentence:
             max_pro = 0;
             max_pos = 0;
             for idx, pos_type in enumerate(self.prior.keys()):
                 if word in self.emission_probabilities[pos_type]:
+                    print(str(self.emission_probabilities[pos_type][word])+":"+str(self.prior[pos_type]))
                     pr = self.emission_probabilities[pos_type][word] * self.prior[pos_type]
                 else:
                     pr = 0.0000001 * self.prior[pos_type]
+                # if first == 1:
+                #     print(pos_type+":"+str(pr))
                 if (pr > max_pro):
                     max_pos = idx
                     max_pro = pr
+            first=0
             pos_sent.append(self.prior.keys()[max_pos])
             pro_sent.append(max_pro)
+        #print("-----")
         return [[pos_sent], [pro_sent]]
         # return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
 
@@ -238,10 +252,10 @@ class Solver:
             tau_value = "s" + str(i + 1)
             tau_lookup_value = "s" + str(i)
             if i == 0:
-                for s_1 in self.pos_init_probabilities:
+                for s_1 in self.pos_init_probabilities.keys():
                     emission_prob = self.min_emission
-                    if v.lower() in self.emission_probabilities[s_1]:
-                        emission_prob = self.emission_probabilities[s_1][v.lower()]
+                    if v in self.emission_probabilities[s_1]:
+                        emission_prob = self.emission_probabilities[s_1][v]
                     calculated_tau_value = self.pos_init_probabilities[s_1] * emission_prob
                     if tau_value in self.taus:
                         self.taus[tau_value][s_1] = calculated_tau_value
@@ -249,6 +263,8 @@ class Solver:
                         self.taus[tau_value] = {}
                         self.taus[tau_value][s_1] = calculated_tau_value
                     base += calculated_tau_value
+                    #print(s_1+":"+str(calculated_tau_value))
+
                     if calculated_tau_value > prob_max:
                         prob_max = calculated_tau_value
                         final_pos = s_1
@@ -258,8 +274,8 @@ class Solver:
                     for s_1 in pos:
                         current_tau_value = self.taus[tau_lookup_value][s_1]
                         emission_prob = self.min_emission
-                        if v.lower() in self.emission_probabilities[s_2]:
-                            emission_prob = self.emission_probabilities[s_2][v.lower()]
+                        if v in self.emission_probabilities[s_2]:
+                            emission_prob = self.emission_probabilities[s_2][v]
 
                         transition_prob = self.min_transition
                         if s_2 in self.pos_transition_probabilities[s_1]:
@@ -294,8 +310,8 @@ class Solver:
                                 transition_prob = self.pos_complex_transition_probabilities[(s_1, s_2)][s_3]
 
                             emission_prob = self.min_emission
-                            if v.lower() in self.emission_probabilities[s_3]:
-                                emission_prob = self.emission_probabilities[s_3][v.lower()]
+                            if v in self.emission_probabilities[s_3]:
+                                emission_prob = self.emission_probabilities[s_3][v]
 
                             calculated_tau_value = current_tau_value * transition_prob * emission_prob
                             sum += calculated_tau_value
@@ -315,6 +331,7 @@ class Solver:
                         final_pos = s_3
             pos_list.append(final_pos)
             conf_list.append(prob_max)
+        #print("----")
         # pprint.pprint(self.taus["s2"])
         # pprint.pprint(self.taus["s2"])
         # pprint.pprint(self.taus["s4"])
