@@ -170,14 +170,14 @@ class Solver:
             for emission_word, emission_prob in emission_word_set.items():
                 if emission_prob < min_emission:
                     min_emission = emission_prob
-        self.min_emission=(min_emission/10)
+        self.min_emission= 0.0000001#(min_emission/10)
 
         min_transition = float("Inf")
         for transition_pos, transition_pos_set in self.pos_transition_probabilities.items():
             for trans_pos, transition_prob in transition_pos_set.items():
                 if transition_prob < min_transition:
                     min_transition = transition_prob
-        self.min_transition = (min_transition / 10)
+        self.min_transition = 0.0000001#(min_transition / 10)
 
 
         min_complex_transition = float("Inf")
@@ -185,7 +185,7 @@ class Solver:
             for trans_pos, transition_prob in transition_pos_set.items():
                 if transition_prob < min_complex_transition:
                     min_complex_transition = transition_prob
-        self.min_complex_transition = (min_complex_transition / 10)
+        self.min_complex_transition = 0.0000001#(min_complex_transition / 10)
 
     # Functions for each algorithm.
     #
@@ -217,7 +217,7 @@ class Solver:
                 veterbi[0][pos_type] = (
                     [], math.log(1 / self.pos_init_probabilities[pos_type]) + self.emission_cost[pos_type][word])
             else:
-                veterbi[0][pos_type] = ([], math.log(1 / self.pos_init_probabilities[pos_type]) + math.log(1 / 0.00001))
+                veterbi[0][pos_type] = ([], math.log(1 / self.pos_init_probabilities[pos_type]) + math.log(1 / 0.0000001))
         for index in range(1, len(sentence)):
             word = sentence[index]
             veterbi[index] = {}
@@ -232,7 +232,7 @@ class Solver:
                 if word in self.emission_cost[pos_type]:
                     veterbi[index][pos_type] = (path, min(prob_values) + self.emission_cost[pos_type][word])
                 else:
-                    veterbi[index][pos_type] = (path, min(prob_values) + math.log(1 / 0.00001))
+                    veterbi[index][pos_type] = (path, min(prob_values) + math.log(1 / 0.0000001))
                     # print veterbi[index]
         pos_sent = []
         pro_sent = []
