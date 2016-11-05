@@ -48,6 +48,10 @@ class Solver:
         sentence_count = 0
         trigram_pos = None
         previous_pos = None
+        min_emission = float("Inf")
+        min_transition = float("Inf")
+        min_complex_transition = float("Inf")
+
 
         for word_list, pos_list in data:
             first_state_flag = 1
@@ -85,13 +89,13 @@ class Solver:
 
                 # Calculate emission counts
                 if pos in emission_counts:
-                    if word in emission_counts[pos]:
+                    if word.lower() in emission_counts[pos]:
                         emission_counts[pos][word] += 1
                     else:
                         emission_counts[pos][word] = 1
                 else:
                     emission_counts[pos] = {}
-                    emission_counts[pos][word] = 1
+                    emission_counts[pos][word.lower()] = 1
                 # Calculate prior counts
                 word_count += 1
                 if pos in prior_counts:
@@ -108,14 +112,13 @@ class Solver:
         prior_pos = set(self.prior.keys())
         to_add = prior_pos.difference(self.pos_init_probabilities.keys())
 
-        # Set missing pos to very small value (Laplace smoothing)
-        for item in to_add:
-            self.pos_init_probabilities[item] = 0.00001
-
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
 
+        # Set missing pos to very small value (Laplace smoothing)
+        for item in to_add:
+            self.pos_init_probabilities[item] = 0.0000001
         prior_pos_copy = prior_pos.copy()
         # Convert state transitions counts to probabilities
         for previous_pos, pos_dict in pos_transition_counts.items():
@@ -128,13 +131,13 @@ class Solver:
                 # Strike off pos values seen so far
                 strike_off.remove(current_pos)
 
-                self.pos_transition_probabilities[previous_pos][current_pos] = ((1.0 * count) / current_count) + 0.00001
+                self.pos_transition_probabilities[previous_pos][current_pos] = ((1.0 * count) / current_count) + 0.0000001
                 self.pos_transition_cost[previous_pos][current_pos] = math.log(
                     1.0 / self.pos_transition_probabilities[previous_pos][current_pos])
 
             # Set very small values for transitions not seen so far
             for inner_item in strike_off:
-                self.pos_transition_probabilities[previous_pos][inner_item] = 0.00001
+                self.pos_transition_probabilities[previous_pos][inner_item] = 0.0000001
                 self.pos_transition_cost[previous_pos][inner_item] = math.log(
                     1.0 / self.pos_transition_probabilities[previous_pos][inner_item])
 
@@ -143,7 +146,7 @@ class Solver:
             self.pos_transition_probabilities[item] = {}
             self.pos_transition_cost[item] = {}
             for inner_item in prior_pos_copy:
-                self.pos_transition_probabilities[item][inner_item] = 0.00001
+                self.pos_transition_probabilities[item][inner_item] = 0.0000001
                 self.pos_transition_cost[item][inner_item] = math.log(
                     1.0 / self.pos_transition_probabilities[item][inner_item])
 
@@ -153,7 +156,7 @@ class Solver:
             self.emission_probabilities[pos] = {}
             self.emission_cost[pos] = {}
             for word, count in word_dict.items():
-                self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.00001
+                self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.0000001
                 self.emission_cost[pos][word] = math.log(1.0 / self.emission_probabilities[pos][word])
         # Convert state transitions counts to probabilities
         for pos_combination, pos_dict in pos_complex_transition_counts.items():
@@ -161,7 +164,28 @@ class Solver:
             self.pos_complex_transition_probabilities[pos_combination] = {}
             for current_pos, count in pos_dict.items():
                 self.pos_complex_transition_probabilities[pos_combination][current_pos] = ((
-                                                                                               1.0 * count) / current_count) + 0.00001
+                                                                                               1.0 * count) / current_count) + 0.0000001
+        min_emission = float("Inf")
+        for emission_pos, emission_word_set in self.emission_probabilities.items():
+            for emission_word, emission_prob in emission_word_set.items():
+                if emission_prob < min_emission:
+                    min_emission = emission_prob
+        self.min_emission=(min_emission/10)
+
+        min_transition = float("Inf")
+        for transition_pos, transition_pos_set in self.pos_transition_probabilities.items():
+            for trans_pos, transition_prob in transition_pos_set.items():
+                if transition_prob < min_transition:
+                    min_transition = transition_prob
+        self.min_transition = (min_transition / 10)
+
+
+        min_complex_transition = float("Inf")
+        for transition_pos, transition_pos_set in self.pos_complex_transition_probabilities.items():
+            for trans_pos, transition_prob in transition_pos_set.items():
+                if transition_prob < min_complex_transition:
+                    min_complex_transition = transition_prob
+        self.min_complex_transition = (min_complex_transition / 10)
 
     # Functions for each algorithm.
     #
@@ -228,20 +252,22 @@ class Solver:
         conf_list = []
         for i, v in enumerate(sentence):
             prob_max = 0
+            base = 0
             final_pos = pos[0]
             tau_value = "s" + str(i + 1)
             tau_lookup_value = "s" + str(i)
             if i == 0:
                 for current_pos in self.pos_init_probabilities:
-                    emission_prob = 0.00001
-                    if v in self.emission_probabilities[current_pos]:
-                        emission_prob = self.emission_probabilities[current_pos][v]
-                    calculated_tau_value=self.pos_init_probabilities[current_pos] * emission_prob
+                    emission_prob = self.min_emission
+                    if v.lower() in self.emission_probabilities[current_pos]:
+                        emission_prob = self.emission_probabilities[current_pos][v.lower()]
+                    calculated_tau_value = self.pos_init_probabilities[current_pos] * emission_prob
                     if tau_value in self.taus:
-                        self.taus[tau_value][current_pos]=calculated_tau_value
-                    else:
-                        self.taus[tau_value]={}
                         self.taus[tau_value][current_pos] = calculated_tau_value
+                    else:
+                        self.taus[tau_value] = {}
+                        self.taus[tau_value][current_pos] = calculated_tau_value
+                    base += calculated_tau_value
                     if calculated_tau_value > prob_max:
                         prob_max = calculated_tau_value
                         final_pos = current_pos
@@ -250,11 +276,12 @@ class Solver:
                     sum = 0
                     for s_1 in pos:
                         current_tau_value = self.taus[tau_lookup_value][s_1]
-                        emission_prob = 0.00001
-                        if v in self.emission_probabilities[s_2]:
-                            emission_prob = self.emission_probabilities[s_2][v]
+                        emission_prob = self.min_emission
+                        if v.lower() in self.emission_probabilities[s_2]:
+                            emission_prob = self.emission_probabilities[s_2][v.lower()]
 
-                        transition_prob = 0.00001
+
+                        transition_prob = self.min_transition
                         if s_2 in self.pos_transition_probabilities[s_1]:
                             transition_prob = self.pos_transition_probabilities[s_1][s_2]
 
@@ -270,6 +297,7 @@ class Solver:
                             self.taus[tau_value] = {}
                             self.taus[tau_value][s_1] = {}
                             self.taus[tau_value][s_1][s_2] = calculated_tau_value
+                    base += sum
                     if sum > prob_max:
                         prob_max = sum
                         final_pos = s_2
@@ -280,14 +308,14 @@ class Solver:
                         for s_2 in pos:
                             current_tau_value = self.taus[tau_lookup_value][s_1][s_2]
 
-                            transition_prob = 0.00001
+                            transition_prob = self.min_complex_transition
                             if (s_1, s_2) in self.pos_complex_transition_probabilities and s_3 in \
                                     self.pos_complex_transition_probabilities[(s_1, s_2)]:
                                 transition_prob = self.pos_complex_transition_probabilities[(s_1, s_2)][s_3]
 
-                            emission_prob = 0.00001
-                            if v in self.emission_probabilities[s_3]:
-                                emission_prob = self.emission_probabilities[s_3][v]
+                            emission_prob = self.min_emission
+                            if v.lower() in self.emission_probabilities[s_3]:
+                                emission_prob = self.emission_probabilities[s_3][v.lower()]
 
                             calculated_tau_value = current_tau_value * transition_prob * emission_prob
                             sum += calculated_tau_value
@@ -301,11 +329,15 @@ class Solver:
                                 self.taus[tau_value] = {}
                                 self.taus[tau_value][s_2] = {}
                                 self.taus[tau_value][s_2][s_3] = calculated_tau_value
+                    base += sum
                     if sum > prob_max:
                         prob_max = sum
                         final_pos = s_3
             pos_list.append(final_pos)
             conf_list.append(prob_max)
+        # pprint.pprint(self.taus["s2"])
+        # pprint.pprint(self.taus["s2"])
+        # pprint.pprint(self.taus["s4"])
         return [[pos_list], [conf_list]]
 
     # This solve() method is called by label.py, so you should keep the interface the
