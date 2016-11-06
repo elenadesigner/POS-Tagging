@@ -17,6 +17,7 @@ import pprint
 import operator
 import itertools
 
+
 # We've set up a suggested code structure, but feel free to change it. Just
 # make sure your code still works with the label.py and pos_scorer.py code
 # that we've supplied.
@@ -37,7 +38,13 @@ class Solver:
     # Calculate the log of the posterior probability of a given sentence
     #  with a given part-of-speech labeling
     def posterior(self, sentence, label):
-        return 0
+        neg_log = 0
+        for word, pos in zip(sentence, label):
+            emission_cost = math.log(self.min_emission)
+            if word in self.emission_cost[pos]:
+                emission_cost = math.log(self.emission_probabilities[pos][word])
+            neg_log += emission_cost
+        return neg_log
 
     # Do the training!
     #
@@ -127,11 +134,11 @@ class Solver:
             for inner_item in strike_off:
                 pos_transition_counts[previous_pos][inner_item] = 0.01
         for item in prior_pos_copy:
-                pos_transition_counts[item] = {}
-                for inner_item in prior_pos:
-                    pos_transition_counts[item][inner_item] = 0.01
+            pos_transition_counts[item] = {}
+            for inner_item in prior_pos:
+                pos_transition_counts[item][inner_item] = 0.01
 
-        pos_pairs=[]
+        pos_pairs = []
         for i in itertools.product(prior_pos, prior_pos):
             pos_pairs.append(i)
         for previous_pos_pair, pos_dict in pos_complex_transition_counts.items():
@@ -145,7 +152,7 @@ class Solver:
             pos_complex_transition_counts[item] = {}
             for inner_item in prior_pos:
                 pos_complex_transition_counts[item][inner_item] = 0.01
-        #Convert state transitions counts to probabilities
+        # Convert state transitions counts to probabilities
         transitions_sanity_count = 0
         for previous_pos, pos_dict in pos_transition_counts.items():
             current_count = sum(pos_dict.values())
@@ -178,30 +185,34 @@ class Solver:
                 self.pos_complex_transition_probabilities[pos_combination][current_pos] = ((
                                                                                                1.0 * count) / current_count) + 0.0000001
         pprint.pprint(self.prior)
-        #pprint.pprint(self.pos_complex_transition_probabilities)
+        # pprint.pprint(self.pos_complex_transition_probabilities)
+
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
         pos_sent = []
         pro_sent = []
-        first=1
+        first = 1
         for word in sentence:
             max_pro = 0;
             max_pos = 0;
+            base=0
             for idx, pos_type in enumerate(self.prior.keys()):
+
                 if word in self.emission_probabilities[pos_type]:
                     pr = self.emission_probabilities[pos_type][word] * self.prior[pos_type]
                 else:
                     pr = 0.0000001 * self.prior[pos_type]
+                base+=pr
                 # if first == 1:
                 #     print(pos_type+":"+str(pr))
                 if (pr > max_pro):
                     max_pos = idx
                     max_pro = pr
-            first=0
+            first = 0
             pos_sent.append(self.prior.keys()[max_pos])
-            pro_sent.append(max_pro)
-        #print("-----")
+            pro_sent.append(round(max_pro/base,4))
+        # print("-----")
         return [[pos_sent], [pro_sent]]
         # return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
 
@@ -250,7 +261,7 @@ class Solver:
         conf_list = []
         for i, v in enumerate(sentence):
             prob_max = 0
-            base = 1
+            base = 0
             final_pos = pos[0]
             tau_value = "s" + str(i + 1)
             tau_lookup_value = "s" + str(i)
@@ -266,7 +277,7 @@ class Solver:
                         self.taus[tau_value] = {}
                         self.taus[tau_value][s_1] = calculated_tau_value
                     base += calculated_tau_value
-                    #print(s_1+":"+str(calculated_tau_value))
+                    # print(s_1+":"+str(calculated_tau_value))
 
                     if calculated_tau_value > prob_max:
                         prob_max = calculated_tau_value
@@ -333,8 +344,11 @@ class Solver:
                         prob_max = sum
                         final_pos = s_3
             pos_list.append(final_pos)
-            conf_list.append(prob_max/base)
-        #print("----")
+            if base != 0:
+                conf_list.append(round(prob_max / base, 4))
+            else:
+                conf_list.append(0.9999)
+        # print("----")
         # pprint.pprint(self.taus["s2"])
         # pprint.pprint(self.taus["s2"])
         # pprint.pprint(self.taus["s4"])
