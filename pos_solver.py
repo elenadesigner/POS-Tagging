@@ -15,7 +15,7 @@ import math
 import collections
 import pprint
 import operator
-
+import itertools
 
 # We've set up a suggested code structure, but feel free to change it. Just
 # make sure your code still works with the label.py and pos_scorer.py code
@@ -110,48 +110,52 @@ class Solver:
         # List of prior value
         prior_pos = set(self.prior.keys())
         to_add = prior_pos.difference(set(pos_init_counts.keys()))
-
+        for item in to_add:
+            pos_init_counts[item] = 0.01
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
 
         # Set missing pos to very small value (Laplace smoothing)
-        for item in to_add:
-            self.pos_init_probabilities[item] = 0.0000001
-        prior_pos_copy = prior_pos.copy()
 
-        # Convert state transitions counts to probabilities
+        prior_pos_copy = prior_pos.copy()
+        for previous_pos, pos_dict in pos_transition_counts.items():
+            prior_pos_copy.remove(previous_pos)
+            strike_off = prior_pos.copy()
+            for current_pos, count in pos_dict.items():
+                strike_off.remove(current_pos)
+            for inner_item in strike_off:
+                pos_transition_counts[previous_pos][inner_item] = 0.01
+        for item in prior_pos_copy:
+                pos_transition_counts[item] = {}
+                for inner_item in prior_pos:
+                    pos_transition_counts[item][inner_item] = 0.01
+
+        pos_pairs=[]
+        for i in itertools.product(prior_pos, prior_pos):
+            pos_pairs.append(i)
+        for previous_pos_pair, pos_dict in pos_complex_transition_counts.items():
+            pos_pairs.remove(previous_pos_pair)
+            strike_off = prior_pos.copy()
+            for current_pos, count in pos_dict.items():
+                strike_off.remove(current_pos)
+            for inner_item in strike_off:
+                pos_complex_transition_counts[previous_pos_pair][inner_item] = 0.01
+        for item in pos_pairs:
+            pos_complex_transition_counts[item] = {}
+            for inner_item in prior_pos:
+                pos_complex_transition_counts[item][inner_item] = 0.01
+        #Convert state transitions counts to probabilities
         transitions_sanity_count = 0
         for previous_pos, pos_dict in pos_transition_counts.items():
-            prior_pos.remove(previous_pos)
             current_count = sum(pos_dict.values())
-            transitions_sanity_count += current_count
             self.pos_transition_probabilities[previous_pos] = {}
             self.pos_transition_cost[previous_pos] = {}
-            strike_off = prior_pos_copy.copy()
             for current_pos, count in pos_dict.items():
-                # Strike off pos values seen so far
-                strike_off.remove(current_pos)
-
                 self.pos_transition_probabilities[previous_pos][current_pos] = ((
                                                                                     1.0 * count) / current_count) + 0.0000001
                 self.pos_transition_cost[previous_pos][current_pos] = math.log(
                     1.0 / self.pos_transition_probabilities[previous_pos][current_pos])
-
-            # Set very small values for transitions not seen so far
-            for inner_item in strike_off:
-                self.pos_transition_probabilities[previous_pos][inner_item] = 0.0000001
-                self.pos_transition_cost[previous_pos][inner_item] = math.log(
-                    1.0 / self.pos_transition_probabilities[previous_pos][inner_item])
-
-        # Set very small values for transitions not seen so far
-        for item in prior_pos:
-            self.pos_transition_probabilities[item] = {}
-            self.pos_transition_cost[item] = {}
-            for inner_item in prior_pos_copy:
-                self.pos_transition_probabilities[item][inner_item] = 0.0000001
-                self.pos_transition_cost[item][inner_item] = math.log(
-                    1.0 / self.pos_transition_probabilities[item][inner_item])
 
         # Convert emission counts to probabilities
         emission_sanity_count = 0
@@ -186,7 +190,6 @@ class Solver:
             max_pos = 0;
             for idx, pos_type in enumerate(self.prior.keys()):
                 if word in self.emission_probabilities[pos_type]:
-                    print(str(self.emission_probabilities[pos_type][word])+":"+str(self.prior[pos_type]))
                     pr = self.emission_probabilities[pos_type][word] * self.prior[pos_type]
                 else:
                     pr = 0.0000001 * self.prior[pos_type]
@@ -247,7 +250,7 @@ class Solver:
         conf_list = []
         for i, v in enumerate(sentence):
             prob_max = 0
-            base = 0
+            base = 1
             final_pos = pos[0]
             tau_value = "s" + str(i + 1)
             tau_lookup_value = "s" + str(i)
@@ -330,7 +333,7 @@ class Solver:
                         prob_max = sum
                         final_pos = s_3
             pos_list.append(final_pos)
-            conf_list.append(prob_max)
+            conf_list.append(prob_max/base)
         #print("----")
         # pprint.pprint(self.taus["s2"])
         # pprint.pprint(self.taus["s2"])
