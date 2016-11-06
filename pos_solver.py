@@ -2,18 +2,48 @@
 # CS B551 Fall 2016, Assignment #3
 #
 # Your names and user ids:
+#   Sarvothaman Madhavan    -   madhavas
+#   Raghavendra Nataraj     -   natarajr
+#   Prateek Srivastava      -   pratsriv
 #
 # (Based on skeleton code by D. Crandall)
 #
 #
 ####
 # Put your report here!!
+# Training:
+# While training the following probabilities are calculated using the plug-in principle (plug in the counts/total
+# occurrence in place of probabilities:
+# 1. Initial state probabilities            :   Out of all the sentences, how many times did each part of speech
+#                                               started the sentence
+# 2. State transition probabilities         :   Count the occurrence of each pairs of pos that occurred in training data
+# 3. Emission probabilities                 :   For each pos, count how many times any word occurred
+#                                               as that part of speech
+# 4. Complex state transition probabilities :   Count the occurrence of each triple pairs of pos that occurred
+#                                               in training data.
+#
+#
+# Complex Model:
+# For the complex model, we started out with estimating the P(S1/W) and P(S2/W) as special cases since these do not have
+# the same structure as all other probabilities i.e P(S3/W). Once these two are saved as tau1 and tau2, all other
+# probability calculations will lookup previous tau values to estimate current "level" probabilities and further save
+# it as current level of tau
+#
+# Accuracy Table for bc.test
+# --------------------------------------------------------
+#               |   Word Accuracy   |   Sentence Accuracy
+# --------------------------------------------------------
+# Simplified    |       93.96%      |       47.50%
+# --------------------------------------------------------
+# hmm           |       95.03%      |       54.05%
+# --------------------------------------------------------
+# Complex       |       92.61%      |       44.45%
+# --------------------------------------------------------
+
 ####
 
-import random
+
 import math
-import collections
-import pprint
 import operator
 import itertools
 
@@ -117,13 +147,14 @@ class Solver:
         # List of prior value
         prior_pos = set(self.prior.keys())
         to_add = prior_pos.difference(set(pos_init_counts.keys()))
+
+        # Add a very small value for count if any pos is missing in prior
         for item in to_add:
             pos_init_counts[item] = 0.01
+
         # Convert initial state counts to probabilities
         for pos, count in pos_init_counts.items():
             self.pos_init_probabilities[pos] = (1.0 * count) / sentence_count
-
-        # Set missing pos to very small value (Laplace smoothing)
 
         prior_pos_copy = prior_pos.copy()
         for previous_pos, pos_dict in pos_transition_counts.items():
@@ -131,8 +162,12 @@ class Solver:
             strike_off = prior_pos.copy()
             for current_pos, count in pos_dict.items():
                 strike_off.remove(current_pos)
+
+            # Add a very small value for count if any pos is missing in prior
             for inner_item in strike_off:
                 pos_transition_counts[previous_pos][inner_item] = 0.01
+
+        # Add a very small value for count if any pos is missing in prior
         for item in prior_pos_copy:
             pos_transition_counts[item] = {}
             for inner_item in prior_pos:
@@ -152,8 +187,8 @@ class Solver:
             pos_complex_transition_counts[item] = {}
             for inner_item in prior_pos:
                 pos_complex_transition_counts[item][inner_item] = 0.01
+
         # Convert state transitions counts to probabilities
-        transitions_sanity_count = 0
         for previous_pos, pos_dict in pos_transition_counts.items():
             current_count = sum(pos_dict.values())
             self.pos_transition_probabilities[previous_pos] = {}
@@ -175,7 +210,7 @@ class Solver:
                 self.emission_probabilities[pos][word] = ((1.0 * count) / current_count) + 0.0000001
                 self.emission_cost[pos][word] = math.log(1.0 / self.emission_probabilities[pos][word])
 
-        # Convert state transitions counts to probabilities
+        # Convert state transition counts to probabilities for complex models
         complex_transitions_sanity_count = 0
         for pos_combination, pos_dict in pos_complex_transition_counts.items():
             current_count = sum(pos_dict.values())
@@ -184,41 +219,32 @@ class Solver:
             for current_pos, count in pos_dict.items():
                 self.pos_complex_transition_probabilities[pos_combination][current_pos] = ((
                                                                                                1.0 * count) / current_count) + 0.0000001
-        pprint.pprint(self.prior)
-        # pprint.pprint(self.pos_complex_transition_probabilities)
 
     # Functions for each algorithm.
     #
     def simplified(self, sentence):
         pos_sent = []
         pro_sent = []
-        first = 1
         for word in sentence:
             max_pro = 0;
             max_pos = 0;
-            base=0
+            base = 0
             for idx, pos_type in enumerate(self.prior.keys()):
-
                 if word in self.emission_probabilities[pos_type]:
                     pr = self.emission_probabilities[pos_type][word] * self.prior[pos_type]
                 else:
                     pr = 0.0000001 * self.prior[pos_type]
-                base+=pr
-                # if first == 1:
-                #     print(pos_type+":"+str(pr))
-                if (pr > max_pro):
+                base += pr
+                if pr > max_pro:
                     max_pos = idx
                     max_pro = pr
-            first = 0
             pos_sent.append(self.prior.keys()[max_pos])
-            pro_sent.append(round(max_pro/base,4))
-        # print("-----")
+            pro_sent.append(round(max_pro / base, 4))
         return [[pos_sent], [pro_sent]]
-        # return [ [ [ "noun" ] * len(sentence)], [[0] * len(sentence),] ]
 
     def hmm(self, sentence):
-        veterbi = {}
-        veterbi[0] = {}
+        veterbi = {0: {}}
+        # veterbi[0] = {}
         for idx, pos_type in enumerate(self.prior.keys()):
             word = sentence[0]
             if sentence[0] in self.emission_cost[pos_type]:
@@ -242,9 +268,7 @@ class Solver:
                     veterbi[index][pos_type] = (path, min(prob_values) + self.emission_cost[pos_type][word])
                 else:
                     veterbi[index][pos_type] = (path, min(prob_values) + math.log(1 / 0.0000001))
-                    # print veterbi[index]
         pos_sent = []
-        pro_sent = []
 
         for index in range(0, len(sentence)):
             max_val = min(veterbi[index].iteritems(), key=operator.itemgetter(1))[0]
@@ -252,7 +276,6 @@ class Solver:
         min_index = min(veterbi[len(sentence) - 1])
         final_pos = veterbi[len(sentence) - 1][min_index][0]
         final_pos.append(min_index)
-        # print final_pos
         return [[final_pos], []]
 
     def complex(self, sentence):
@@ -277,14 +300,13 @@ class Solver:
                         self.taus[tau_value] = {}
                         self.taus[tau_value][s_1] = calculated_tau_value
                     base += calculated_tau_value
-                    # print(s_1+":"+str(calculated_tau_value))
 
                     if calculated_tau_value > prob_max:
                         prob_max = calculated_tau_value
                         final_pos = s_1
             elif i == 1:
                 for s_2 in pos:
-                    sum = 0
+                    curr_pos_sum = 0
                     for s_1 in pos:
                         current_tau_value = self.taus[tau_lookup_value][s_1]
                         emission_prob = self.min_emission
@@ -296,7 +318,7 @@ class Solver:
                             transition_prob = self.pos_transition_probabilities[s_1][s_2]
 
                         calculated_tau_value = current_tau_value * transition_prob * emission_prob
-                        sum += calculated_tau_value
+                        curr_pos_sum += calculated_tau_value
                         if tau_value in self.taus:
                             if s_1 in self.taus[tau_value]:
                                 self.taus[tau_value][s_1][s_2] = calculated_tau_value
@@ -307,13 +329,13 @@ class Solver:
                             self.taus[tau_value] = {}
                             self.taus[tau_value][s_1] = {}
                             self.taus[tau_value][s_1][s_2] = calculated_tau_value
-                    base += sum
-                    if sum > prob_max:
-                        prob_max = sum
+                    base += curr_pos_sum
+                    if curr_pos_sum > prob_max:
+                        prob_max = curr_pos_sum
                         final_pos = s_2
             else:
                 for s_3 in pos:
-                    sum = 0
+                    curr_pos_sum = 0
                     for s_1 in pos:
                         for s_2 in pos:
                             current_tau_value = self.taus[tau_lookup_value][s_1][s_2]
@@ -328,7 +350,7 @@ class Solver:
                                 emission_prob = self.emission_probabilities[s_3][v]
 
                             calculated_tau_value = current_tau_value * transition_prob * emission_prob
-                            sum += calculated_tau_value
+                            curr_pos_sum += calculated_tau_value
                             if tau_value in self.taus:
                                 if s_2 in self.taus[tau_value]:
                                     self.taus[tau_value][s_2][s_3] = calculated_tau_value
@@ -339,19 +361,15 @@ class Solver:
                                 self.taus[tau_value] = {}
                                 self.taus[tau_value][s_2] = {}
                                 self.taus[tau_value][s_2][s_3] = calculated_tau_value
-                    base += sum
-                    if sum > prob_max:
-                        prob_max = sum
+                    base += curr_pos_sum
+                    if curr_pos_sum > prob_max:
+                        prob_max = curr_pos_sum
                         final_pos = s_3
             pos_list.append(final_pos)
             if base != 0:
                 conf_list.append(round(prob_max / base, 4))
             else:
                 conf_list.append(0.9999)
-        # print("----")
-        # pprint.pprint(self.taus["s2"])
-        # pprint.pprint(self.taus["s2"])
-        # pprint.pprint(self.taus["s4"])
         return [[pos_list], [conf_list]]
 
     # This solve() method is called by label.py, so you should keep the interface the
