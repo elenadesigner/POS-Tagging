@@ -10,7 +10,6 @@
 #
 #
 ####
-# Put your report here!!
 # Training:
 # While training the following probabilities are calculated using the plug-in principle (plug in the counts/total
 # occurrence in place of probabilities:
@@ -28,6 +27,9 @@
 # the same structure as all other probabilities i.e P(S3/W). Once these two are saved as tau1 and tau2, all other
 # probability calculations will lookup previous tau values to estimate current "level" probabilities and further save
 # it as current level of tau
+#
+# Posterior Calculation:
+#           For posterior calculation, we assume the HMM model
 #
 # Accuracy Table for bc.test
 # --------------------------------------------------------
@@ -69,11 +71,19 @@ class Solver:
     #  with a given part-of-speech labeling
     def posterior(self, sentence, label):
         neg_log = 0
+        previous_pos=None
         for word, pos in zip(sentence, label):
             emission_cost = math.log(self.min_emission)
             if word in self.emission_cost[pos]:
                 emission_cost = math.log(self.emission_probabilities[pos][word])
-            neg_log += emission_cost
+            transition_cost= math.log(self.min_transition)
+            if previous_pos is None:
+                transition_cost=math.log(self.pos_init_probabilities[pos])
+            else:
+                if pos in self.pos_transition_cost[previous_pos]:
+                    transition_cost = math.log(self.pos_transition_probabilities[previous_pos][pos])
+            neg_log += emission_cost + transition_cost
+            previous_pos=pos
         return neg_log
 
     # Do the training!
